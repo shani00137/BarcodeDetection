@@ -1,0 +1,72 @@
+﻿<Window x:Class="BarcodeDetection.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:BarcodeDetection"
+        mc:Ignorable="d"
+        Title="Barcode Detection" Height="600" Width="1000"
+        Background="#1E1E2E">
+
+    <Grid Margin="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="4*"/>
+            <!-- 80% for video -->
+            <ColumnDefinition Width="1*"/>
+            <!-- 20% for controls/results -->
+        </Grid.ColumnDefinitions>
+
+        <!-- VIDEO PREVIEW -->
+        <Border Grid.Column="0" BorderBrush="#444" BorderThickness="2" CornerRadius="12" Margin="0 0 10 0">
+            <Image x:Name="PreviewImage" Stretch="Uniform"/>
+        </Border>
+
+        <!-- RIGHT SIDEBAR -->
+        <StackPanel Grid.Column="1" Margin="10" Background="#2D2D3A" >
+
+            <!-- Upload Button -->
+            <Button Content="📂 Upload Video"
+                    Click="UploadButton_Click"
+                    Background="#4CAF50"
+                    Foreground="White"
+                    Padding="10"
+                    FontSize="16"
+                    FontWeight="Bold"
+                    Margin="0 0 0 15"/>
+
+            <!-- Barcode Results -->
+            <TextBlock Text="Detected Barcodes:"
+                       FontSize="18"
+                       FontWeight="Bold"
+                       Foreground="White"
+                       Margin="0 0 0 5"/>
+            <ListBox x:Name="ResultsList"
+                     Background="#3A3A4A"
+                     Foreground="White"
+                     FontSize="16"
+                     BorderThickness="0"
+                     Padding="10"
+                     Height="300"/>
+
+            <!-- Countdown -->
+            <StackPanel Orientation="Horizontal" 
+            HorizontalAlignment="Left" 
+            VerticalAlignment="Center"
+            Margin="0 10 0 0">
+                <TextBlock Text="⏳ Countdown:" 
+               FontSize="14"
+               FontWeight="Bold"
+               Foreground="White"
+               VerticalAlignment="Center"
+               Margin="0,0,5,0"/>
+                <TextBlock x:Name="CountdownText"
+               FontSize="20"
+               Foreground="Red"
+               FontWeight="Bold"
+               VerticalAlignment="Center"/>
+            </StackPanel>
+
+
+        </StackPanel>
+    </Grid>
+</Window>
