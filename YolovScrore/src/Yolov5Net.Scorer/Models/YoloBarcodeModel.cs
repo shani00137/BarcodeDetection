@@ -4,7 +4,7 @@ public record YoloBarcodeModel() : YoloModel(
     640, // Width
     640, // Height
     3,   // Channels
-    10,  // 4 + 1 + 5 classes
+    6,  // 4 + 1 + 5 classes
     new[] { 8, 16, 32 }, // Strides
     new[]
     {
@@ -19,11 +19,7 @@ public record YoloBarcodeModel() : YoloModel(
     new[] { "output0" }, // Check your ONNX output node name in Netron
     new()
     {
-        new(0, "2_pipe"),
-        new(1, "3_pipe"),
-        new(2, "4_pipe"),
-        new(3, "5_pipe"),
-        new(4, "mix_pipe")
+        new(0, "barcode")
     },
     true
 );

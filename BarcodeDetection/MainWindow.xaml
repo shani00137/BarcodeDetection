@@ -46,7 +46,7 @@
                      FontSize="16"
                      BorderThickness="0"
                      Padding="10"
-                     Height="300"/>
+                     Height="600"/>
 
             <!-- Countdown -->
             <StackPanel Orientation="Horizontal" 

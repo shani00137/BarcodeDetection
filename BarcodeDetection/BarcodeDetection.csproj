@@ -7,13 +7,20 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
-
+	<PropertyGroup>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+	</PropertyGroup>
+	
   <ItemGroup>
     <None Remove="Asset\beep.wav" />
+    <None Remove="Asset\Weights\barocode.onnx" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="Asset\beep.wav">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Asset\Weights\barocode.onnx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
@@ -21,6 +28,8 @@
 
 
   <ItemGroup>
+	  <PackageReference Include="Microsoft.ML" Version="3.0.1" />
+	  <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.17.3" />
     <PackageReference Include="ZXingCpp" Version="0.4.0-alpha" />
 	  <PackageReference Include="System.Drawing.Common" Version="8.0.11" />
 	  <PackageReference Include="OpenCvSharp4" Version="4.11.0.20250507" />
@@ -29,6 +38,12 @@
 	  <PackageReference Include="OpenCvSharp4.Extensions" Version="4.11.0.20250507" />
 	  <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-beta14" />
 
+  </ItemGroup>
+
+
+
+  <ItemGroup>
+    <ProjectReference Include="..\YolovScrore\src\Yolov5Net.Scorer\Yolov5Net.Scorer.csproj" />
   </ItemGroup>
 
 
