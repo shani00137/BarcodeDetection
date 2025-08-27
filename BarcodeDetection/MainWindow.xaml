@@ -65,6 +65,9 @@
                FontWeight="Bold"
                VerticalAlignment="Center"/>
             </StackPanel>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel x:Name="DecodePreviewPanel" Orientation="Horizontal" />
+            </ScrollViewer>
 
 
         </StackPanel>
