@@ -12,6 +12,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
@@ -31,6 +32,9 @@ using Bitmap = System.Drawing.Bitmap;
 using Image = SixLabors.ImageSharp.Image;
 using PixelFormat = System.Drawing.Imaging.PixelFormat;
 using Rectangle = System.Drawing.Rectangle;
+using Dynamsoft.DBR;
+using Dynamsoft.Core;
+using Dynamsoft.CVR;
 
 namespace BarcodeDetection
 {
@@ -56,6 +60,7 @@ namespace BarcodeDetection
         {
             try
             {
+                InitializeDynamsoft();
                 SessionOptions sessionOptions = new SessionOptions();
                 try
                 {
@@ -88,7 +93,33 @@ namespace BarcodeDetection
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-       
+        private void InitializeDynamsoft()
+        {
+            try
+            {
+                // Set current directory like in working sample
+                System.IO.Directory.SetCurrentDirectory(AppDomain.CurrentDomain.BaseDirectory);
+
+                int errorCode = Dynamsoft.License.LicenseManager.InitLicense("t0082YQEAAFzQsawYFdlbS+MALBl3Cd0W2FyGAEXhHM0cjdJ3LEImqBt//n3FIuogZWd5+KysGEO35u4PfeN8/IsRFy2d1LL+fTPxvhk55BRd2zZJrw==", out string errorMsg);
+
+                if (errorCode != (int)EnumErrorCode.EC_OK && errorCode != (int)EnumErrorCode.EC_LICENSE_WARNING)
+                {
+                    //_logger.LogCritical($"License initialization failed: ErrorCode: {errorCode}, ErrorString: {errorMsg}");
+                    //ShowErrorDialog($"License initialization failed: ErrorCode: {errorCode}, ErrorString: {errorMsg}");
+                }
+                else
+                {
+                    //_logger.LogImportant($"License initialized successfully: ErrorCode: {errorCode}");
+                }
+
+                //cvRouter = new CaptureVisionRouter();
+            }
+            catch (Exception ex)
+            {
+                //_logger.LogCritical($"Failed to initialize Dynamsoft: {ex.Message}");
+                //ShowErrorDialog($"Failed to initialize Dynamsoft: {ex.Message}");
+            }
+        }
         private void UploadButton_Click(object sender, RoutedEventArgs e)
         {
             var openFileDialog = new OpenFileDialog
@@ -115,54 +146,131 @@ namespace BarcodeDetection
         #region barcode detection with library
         private void ProcessVideo(string videoPath, CancellationToken token)
         {
-            using var capture = new VideoCapture(videoPath);
+            // Initialize Dynamsoft license
+            string errorMsg;
+           
 
-            if (!capture.IsOpened())
+            using (var capture = new VideoCapture(videoPath))
+            using (var cvRouter = new CaptureVisionRouter())
             {
-                Dispatcher.Invoke(() => ResultsList.Items.Add("❌ Cannot open video."));
-                return;
-            }
+                // Initialize Dynamsoft settings
+               
 
-            using var frame = new Mat();
-
-            while (!token.IsCancellationRequested)
-            {
-                if (!capture.Read(frame) || frame.Empty())
-                    break;
-
-                using var cloned = frame.Clone();
-                var bitmap = cloned.ToBitmap();
-
-                // Detect barcodes
-                string[] newResults = TryDecodeBitmap(bitmap);
-
-                foreach (var code in newResults)
+                if (!capture.IsOpened())
                 {
-                    if (_detectedBarcodes.Add(code)) // only new ones
-                        MediaBeep.PlayRobotBeep();    // 🔔 beep sound
+                    Dispatcher.Invoke(() => ResultsList.Items.Add("❌ Cannot open video."));
+                    return;
                 }
 
-                // Convert frame to WPF image
-                var bitmapImage = cloned.ToBitmapSource();
-                bitmapImage.Freeze();
-
-                Dispatcher.Invoke(() =>
+                using (var frame = new Mat())
                 {
-                    PreviewImage.Source = bitmapImage;
-                    UpdateResultsUI();
-
-                    if (_detectedBarcodes.Count >= 3)
+                    while (!token.IsCancellationRequested)
                     {
-                        ResultsList.Items.Add("🎉 All 3 barcodes detected!");
-                        //_cts.Cancel(); // stop video
-                        //StartCountdown();
-                    }
-                });
+                        if (!capture.Read(frame) || frame.Empty())
+                            break;
 
-                Cv2.WaitKey(1); // smooth rendering
+                        using (var cloned = frame.Clone())
+                        {
+                            var bitmap = cloned.ToBitmap();
+
+                            // Detect barcodes using Dynamsoft
+                            string[] newResults = TryDecodeWithDynamsoft(bitmap, cvRouter);
+
+                            foreach (var code in newResults)
+                            {
+                                if (!string.IsNullOrEmpty(code) && _detectedBarcodes.Add(code))
+                                {
+                                    MediaBeep.PlayRobotBeep(); // 🔔 beep sound
+                                }
+                            }
+
+                            // Convert frame to WPF image
+                            var bitmapImage = cloned.ToBitmapSource();
+                            bitmapImage.Freeze();
+
+                            Dispatcher.Invoke(() =>
+                            {
+                                PreviewImage.Source = bitmapImage;
+                                UpdateResultsUI();
+
+                                if (_detectedBarcodes.Count >= 3)
+                                {
+                                    ResultsList.Items.Add("🎉 All 3 barcodes detected!");
+                                    //_cts.Cancel(); // stop video
+                                    //StartCountdown();
+                                }
+                            });
+
+                            Cv2.WaitKey(1); // smooth rendering
+                        }
+                    }
+                }
             }
         }
+        private string[] TryDecodeWithDynamsoft(System.Drawing.Bitmap bitmap, CaptureVisionRouter cvRouter)
+        {
+            List<string> results = new List<string>();
+            string errorMsg;
 
+            try
+            {
+                // Save bitmap to project directory
+                string projectDir = AppDomain.CurrentDomain.BaseDirectory;
+                string imageDir = Path.Combine(projectDir, "CapturedFrames");
+
+                // Create directory if it doesn't exist
+                if (!Directory.Exists(imageDir))
+                {
+                    Directory.CreateDirectory(imageDir);
+                }
+
+                string imagePath = Path.Combine(imageDir, $"frame_{DateTime.Now:yyyyMMdd_HHmmssfff}.png");
+                bitmap.Save(imagePath, System.Drawing.Imaging.ImageFormat.Png);
+
+                try
+                {
+                    // Capture and decode using file path
+                    CapturedResult[] capturedResults = cvRouter.CaptureMultiPages(imagePath, "");
+
+                    if (capturedResults != null)
+                    {
+                        foreach (var result in capturedResults)
+                        {
+                           
+                                DecodedBarcodesResult barcodeResult = result.GetDecodedBarcodesResult();
+                                BarcodeResultItem[] items = barcodeResult?.GetItems();
+
+                                if (items != null)
+                                {
+                                    foreach (var item in items)
+                                    {
+                                        string barcodeText = item.GetText();
+                                        if (!string.IsNullOrEmpty(barcodeText))
+                                        {
+                                            results.Add(barcodeText);
+                                        }
+                                    }
+                                }
+                          
+                        }
+                    }
+                }
+                finally
+                {
+                    // Optional: Delete the image after processing if you don't need it
+                    if (File.Exists(imagePath))
+                    {
+                        File.Delete(imagePath);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Dispatcher.Invoke(() => ResultsList.Items.Add("❌ Decoding error: " + ex.Message));
+            }
+
+            return results.ToArray();
+        }
         private void UpdateResultsUI()
         {
             ResultsList.Items.Clear();
