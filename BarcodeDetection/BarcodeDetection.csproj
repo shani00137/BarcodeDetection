@@ -30,14 +30,15 @@
   <ItemGroup>
 	  <PackageReference Include="Microsoft.ML" Version="3.0.1" />
 	  <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.17.3" />
-    <PackageReference Include="ZXingCpp" Version="0.4.0-alpha" />
+	  <PackageReference Include="Sdcb.PaddleInference.runtime.win64.mkl" Version="3.1.0.54" />
+	  <PackageReference Include="Sdcb.PaddleOCR" Version="3.0.1" />
+	  <PackageReference Include="Sdcb.PaddleOCR.Models.Local" Version="3.0.1" />
 	  <PackageReference Include="System.Drawing.Common" Version="8.0.11" />
 	  <PackageReference Include="OpenCvSharp4" Version="4.11.0.20250507" />
 	  <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.11.0.20250507" />
 	  <PackageReference Include="OpenCvSharp4.WpfExtensions" Version="4.11.0.20250507" />
 	  <PackageReference Include="OpenCvSharp4.Extensions" Version="4.11.0.20250507" />
 	  <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-beta14" />
-	  <PackageReference Include="Dynamsoft.DotNet.BarcodeReader.Bundle" Version="11.0.4000" />
 
   </ItemGroup>
 

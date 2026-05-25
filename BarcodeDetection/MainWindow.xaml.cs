@@ -4,20 +4,17 @@ using OpenCvSharp.Extensions;
 using OpenCvSharp.WpfExtensions;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using Sdcb.PaddleInference;
+using Sdcb.PaddleOCR;
+using Sdcb.PaddleOCR.Models.Local;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Media.Imaging;
 using Yolov5Net.Scorer;
-using Dynamsoft.DBR;
-using Dynamsoft.CVR;
-using Dynamsoft.Core;
-using Dynamsoft.License;
 using Image = SixLabors.ImageSharp.Image;
 
 namespace BarcodeDetection
@@ -25,62 +22,35 @@ namespace BarcodeDetection
     public partial class MainWindow : System.Windows.Window
     {
         private YoloScorer<YoloBarcodeModel> _scorerBarcodeDetectionModel;
-        private CaptureVisionRouter _cvRouter;
+        private PaddleOcrAll _ocrEngine;
 
         public MainWindow()
         {
             InitializeComponent();
             Loaded += MainWindow_Loaded;
-            Closed += (s, e) => { _scorerBarcodeDetectionModel?.Dispose(); _cvRouter?.Dispose(); };
+            Closed += (s, e) =>
+            {
+                _scorerBarcodeDetectionModel?.Dispose();
+                _ocrEngine?.Dispose();
+            };
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             try
             {
-                // Inside your DecodeCrop method or where you initialize _cvRouter
-                string jsonSettings = @"{
-    ""CaptureVisionTemplates"": [{
-        ""Name"": ""ReadBarcode_Aggressive"",
-        ""ImageROIProcessingNameArray"": [""roi-read-barcodes""]
-    }],
-    ""TargetROIDefOptions"": [{
-        ""Name"": ""roi-read-barcodes"",
-        ""TaskSettingNameArray"": [""task-read-barcodes""]
-    }],
-    ""BarcodeReaderTaskOptions"": [{
-        ""Name"": ""task-read-barcodes"",
-        ""BarcodeFormatIds"": [""BF_ALL""],
-        ""ExpectedBarcodesCount"": 1,
-        ""LocalizationModes"": [
-            { ""Mode"": ""LM_CONNECTED_BLOCKS"" },
-            { ""Mode"": ""LM_SCAN_DIRECTLY"" },
-            { ""Mode"": ""LM_LINES"" }
-        ],
-        ""DeblurModes"": [
-            { ""Mode"": ""DM_BASED_ON_LOC_BIN"" },
-            { ""Mode"": ""DM_THRESHOLD_BINARIZATION"" },
-            { ""Mode"": ""DM_GRAY_SCALALR"" }
-        ],
-        ""ScaleUpModes"": [{ ""Mode"": ""SUM_LINEAR_INTERPOLATION"", ""TargetSize"": 1000 }]
-    }]
-}";
-
-
-                // 1. Initialize Dynamsoft License
-                string license = "t0082YQEAAFzQsawYFdlbS+MALBl3Cd0W2FyGAEXhHM0cjdJ3LEImqBt//n3FIuogZWd5+KysGEO35u4PfeN8/IsRFy2d1LL+fTPxvhk55BRd2zZJrw==";
-                LicenseManager.InitLicense(license, out string errorMsg);
-                
-                // 2. Initialize YOLO Scorer
+                // 1. Initialize YOLO Scorer
                 var options = new SessionOptions();
-                options.AppendExecutionProvider_CPU(); // Use CPU for single image reliability
+                options.AppendExecutionProvider_CPU();
 
                 var modelPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Asset", "Weights", "barocode.onnx");
                 _scorerBarcodeDetectionModel = new YoloScorer<YoloBarcodeModel>(modelPath, options);
 
-                // 3. Initialize Router
-                _cvRouter = new CaptureVisionRouter();
-                _cvRouter.InitSettings(jsonSettings);
+                // 2. Initialize PaddleOCR
+                _ocrEngine = new PaddleOcrAll(LocalFullModels.EnglishV4, PaddleDevice.Mkldnn())
+                {
+                    AllowRotateDetection = true,
+                };
             }
             catch (Exception ex)
             {
@@ -88,7 +58,7 @@ namespace BarcodeDetection
             }
         }
 
-        private void UploadImageButton_Click(object sender, RoutedEventArgs e)
+        private async void UploadImageButton_Click(object sender, RoutedEventArgs e)
         {
             var openFileDialog = new Microsoft.Win32.OpenFileDialog
             {
@@ -97,7 +67,7 @@ namespace BarcodeDetection
 
             if (openFileDialog.ShowDialog() == true)
             {
-                ProcessStaticImage(openFileDialog.FileName);
+                await ProcessStaticImage(openFileDialog.FileName);
             }
         }
 
@@ -117,7 +87,7 @@ namespace BarcodeDetection
 
             if (!predictions.Any())
             {
-                ResultsList.Items.Add("❌ No barcode bounding boxes detected.");
+                ResultsList.Items.Add("No text regions detected.");
                 return;
             }
 
@@ -134,7 +104,7 @@ namespace BarcodeDetection
                 int w = (int)(pred.Rectangle.Width / gain);
                 int h = (int)(pred.Rectangle.Height / gain);
 
-                // ✅ Dynamic padding (5% of size OR min 3px)
+                // Dynamic padding (5% of size OR min 3px)
                 int padding = Math.Max(3, (int)(Math.Min(w, h) * 0.10));
 
                 // Expand rectangle
@@ -143,7 +113,6 @@ namespace BarcodeDetection
                 int newW = Math.Min(w + padding * 2, mat.Width - newX);
                 int newH = Math.Min(h + padding * 2, mat.Height - newY);
 
-                // Safety check
                 if (newW <= 0 || newH <= 0)
                     continue;
 
@@ -152,23 +121,29 @@ namespace BarcodeDetection
                 // 4. Crop from ORIGINAL image (high quality)
                 using var crop = bitmap.Clone(rect, bitmap.PixelFormat);
 
-                // 🔍 Decode
-                var decodedText = await ReadBarcodesFromCroppedImage(crop.ToMat());
+                // 5. Run OCR on cropped image
+                var resultText = await Task.Run(() =>
+                {
+                    using var cropMat = crop.ToMat();
+                    PaddleOcrResult result = _ocrEngine.Run(cropMat);
+                    return result.Text?.Trim() ?? string.Empty;
+                });
 
-                
-                    ResultsList.Items.Add($"✅ Found: {decodedText}");
+                if (!string.IsNullOrWhiteSpace(resultText))
+                {
+                    ResultsList.Items.Add(resultText);
+                }
 
-                    // Draw rectangle on preview
-                    Cv2.Rectangle(
-                        mat,
-                        new OpenCvSharp.Rect(rect.X, rect.Y, rect.Width, rect.Height),
-                        Scalar.Lime,
-                        3
-                    );
-                
+                // Draw rectangle on preview
+                Cv2.Rectangle(
+                    mat,
+                    new OpenCvSharp.Rect(rect.X, rect.Y, rect.Width, rect.Height),
+                    Scalar.Lime,
+                    3
+                );
             }
 
-            // 5. Show result image
+            // 6. Show result image
             PreviewImage.Source = mat.ToBitmapSource();
         }
 
@@ -197,120 +172,6 @@ namespace BarcodeDetection
             bmp.Save(ms, ImageFormat.Bmp);
             ms.Position = 0;
             return Image.Load<Rgba32>(ms);
-        }
-        private string DecodeCrop(Bitmap bmp)
-        {
-            // 1. Convert to Mat
-            using var mat = bmp.ToMat();
-            using var processed = new Mat();
-
-            // FIX: Only convert to Gray if it isn't Gray already
-            if (mat.Channels() == 3 || mat.Channels() == 4)
-            {
-                Cv2.CvtColor(mat, processed, ColorConversionCodes.BGR2GRAY);
-            }
-            else
-            {
-                mat.CopyTo(processed);
-            }
-
-            // 2. Add White Padding (Quiet Zone) 
-            // Barcode readers fail if bars touch the edge. Let's add 20px of white space.
-            using var padded = new Mat();
-            Cv2.CopyMakeBorder(processed, padded, 20, 20, 20, 20, BorderTypes.Constant, Scalar.White);
-
-            // 3. Sharpening (Unsharp Mask) to fix the blur in your images
-            using var blur = new Mat();
-            Cv2.GaussianBlur(padded, blur, new OpenCvSharp.Size(0, 0), 3);
-            Cv2.AddWeighted(padded, 1.5, blur, -0.5, 0, padded);
-
-            // 4. Increase Contrast
-            Cv2.Normalize(padded, padded, 0, 255, NormTypes.MinMax);
-
-            // 5. Final Step: Decode
-            using var finalBmp = padded.ToBitmap();
-            BitmapData data = finalBmp.LockBits(new System.Drawing.Rectangle(0, 0, finalBmp.Width, finalBmp.Height),
-                ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-
-            try
-            {
-                int bufferSize = data.Stride * data.Height;
-                byte[] buffer = new byte[bufferSize];
-                Marshal.Copy(data.Scan0, buffer, 0, bufferSize);
-
-                // Note: Dynamsoft usually expects RGB_888 for 24bpp BitmapData
-                ImageData imageData = new ImageData(buffer, finalBmp.Width, finalBmp.Height, data.Stride, EnumImagePixelFormat.IPF_RGB_888);
-
-                CapturedResult capturedResult = _cvRouter.Capture(imageData, "ReadBarcode_Aggressive");
-
-                var barcodeResult = capturedResult?.GetDecodedBarcodesResult();
-                return barcodeResult?.GetItems()?.FirstOrDefault()?.GetText() ?? string.Empty;
-            }
-            catch { return string.Empty; }
-            finally { finalBmp.UnlockBits(data); }
-        }
-        private async Task<List<string>> ReadBarcodesFromCroppedImage(Mat croppedBarcode)
-        {
-            var results = new HashSet<string>(); // HashSet prevents duplicates
-
-            // Try all 4 rotations — original, 90°, 180°, 270°
-            RotateFlags?[] rotations = [null, RotateFlags.Rotate90Clockwise, RotateFlags.Rotate180, RotateFlags.Rotate90Counterclockwise];
-
-            foreach (var rotation in rotations)
-            {
-                using Mat rotated = new Mat();
-
-                if (rotation.HasValue)
-                    Cv2.Rotate(croppedBarcode, rotated, rotation.Value);
-                else
-                    croppedBarcode.CopyTo(rotated);
-
-                var found = await ScanSingleFrame(rotated);
-                foreach (var text in found)
-                    results.Add(text);
-
-                // Stop early if we already found all 3 barcodes
-                if (results.Count >= 3) break;
-            }
-
-            return results.ToList();
-        }
-
-        private async Task<List<string>> ScanSingleFrame(Mat frame)
-        {
-            var list = new List<string>();
-            string tempPath = Path.Combine(Path.GetTempPath(), $"barcode_{Guid.NewGuid():N}.png");
-
-            try
-            {
-                await Task.Run(() => Cv2.ImWrite(tempPath, frame));
-
-                CapturedResult[] results = await Task.Run(() =>
-                    _cvRouter!.CaptureMultiPages(tempPath, PresetTemplate.PT_READ_BARCODES));
-
-                foreach (var result in results)
-                {
-                    var items = result.GetDecodedBarcodesResult()?.GetItems();
-                    if (items is null) continue;
-
-                    foreach (var item in items)
-                    {
-                        string text = item.GetText();
-                        if (!string.IsNullOrWhiteSpace(text))
-                            list.Add(text);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-            }
-            finally
-            {
-                if (File.Exists(tempPath))
-                    try { File.Delete(tempPath); } catch { }
-            }
-
-            return list;
         }
     }
 }

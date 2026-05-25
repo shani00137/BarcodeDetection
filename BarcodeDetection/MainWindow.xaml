@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:BarcodeDetection"
         mc:Ignorable="d"
-        Title="Barcode Detection" Height="600" Width="1000"
+        Title="Text Detection &amp; OCR" Height="600" Width="1000"
         Background="#1E1E2E">
 
     <Grid Margin="20">
@@ -34,8 +34,8 @@
                     FontWeight="Bold"
                     Margin="0 0 0 15"/>
 
-            <!-- Barcode Results -->
-            <TextBlock Text="Detected Barcodes:"
+            <!-- OCR Results -->
+            <TextBlock Text="Detected Text:"
                        FontSize="18"
                        FontWeight="Bold"
                        Foreground="White"
