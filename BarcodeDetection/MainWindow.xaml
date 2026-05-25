@@ -5,27 +5,22 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:BarcodeDetection"
         mc:Ignorable="d"
-        Title="Text Detection &amp; OCR" Height="600" Width="1000"
+        Title="OCR Text Extraction" Height="600" Width="1000"
         Background="#1E1E2E">
 
     <Grid Margin="20">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="4*"/>
-            <!-- 80% for video -->
             <ColumnDefinition Width="1*"/>
-            <!-- 20% for controls/results -->
         </Grid.ColumnDefinitions>
 
-        <!-- VIDEO PREVIEW -->
         <Border Grid.Column="0" BorderBrush="#444" BorderThickness="2" CornerRadius="12" Margin="0 0 10 0">
             <Image x:Name="PreviewImage" Stretch="Uniform"/>
         </Border>
 
-        <!-- RIGHT SIDEBAR -->
         <StackPanel Grid.Column="1" Margin="10" Background="#2D2D3A" >
 
-            <!-- Upload Button -->
-            <Button Content="📂 Upload Video"
+            <Button Content="Upload Image"
                     Click="UploadImageButton_Click"
                     Background="#4CAF50"
                     Foreground="White"
@@ -34,8 +29,7 @@
                     FontWeight="Bold"
                     Margin="0 0 0 15"/>
 
-            <!-- OCR Results -->
-            <TextBlock Text="Detected Text:"
+            <TextBlock Text="Extracted Fields:"
                        FontSize="18"
                        FontWeight="Bold"
                        Foreground="White"
@@ -46,29 +40,7 @@
                      FontSize="16"
                      BorderThickness="0"
                      Padding="10"
-                     Height="600"/>
-
-            <!-- Countdown -->
-            <StackPanel Orientation="Horizontal" 
-            HorizontalAlignment="Left" 
-            VerticalAlignment="Center"
-            Margin="0 10 0 0">
-                <TextBlock Text="⏳ Countdown:" 
-               FontSize="14"
-               FontWeight="Bold"
-               Foreground="White"
-               VerticalAlignment="Center"
-               Margin="0,0,5,0"/>
-                <TextBlock x:Name="CountdownText"
-               FontSize="20"
-               Foreground="Red"
-               FontWeight="Bold"
-               VerticalAlignment="Center"/>
-            </StackPanel>
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                <StackPanel x:Name="DecodePreviewPanel" Orientation="Horizontal" />
-            </ScrollViewer>
-
+                     Height="200"/>
 
         </StackPanel>
     </Grid>
