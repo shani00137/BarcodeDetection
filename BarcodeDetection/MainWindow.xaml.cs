@@ -117,9 +117,29 @@ namespace BarcodeDetection
                     return fallback?.Value ?? "Not found";
                 }
 
-                string sku = ExtractField(@"sku", @"sku[\w-]+");
-                string batchNo = ExtractField(@"Batch", @"[\d]{5,}[-*][\d]+[-*][\w:*<>\-]+|[\d]{5,}[-*][\d]+[-*].+");
-                string boxNo = ExtractField(@"Box\s*No\.?", @"\d+");
+                string sku = ExtractField(@"sku", @"\d{5,}[A-Za-z][\w-]*");
+                string batchNo = ExtractField(@"Batch", @"\d{5,}[-*][\d]+[-*][\w:*<>\-]+");
+                string boxNo = "Not found";
+                var boxRegions = regions
+                    .Select((r, i) => new { r, i })
+                    .Where(x => Regex.IsMatch(x.r.Text, @"Box\s*No\.?", RegexOptions.IgnoreCase))
+                    .ToList();
+                foreach (var lr in boxRegions)
+                {
+                    var match = Regex.Match(lr.r.Text, @"\d{2,}");
+                    if (match.Success) { boxNo = match.Value; break; }
+                    var next = regions.Skip(lr.i + 1).FirstOrDefault();
+                    if (next != null)
+                    {
+                        float dy = Math.Abs(next.Center.Y - lr.r.Center.Y);
+                        float dx = Math.Abs(next.Center.X - lr.r.Center.X);
+                        if (dy < 200 && dx < 800)
+                        {
+                            match = Regex.Match(next.Text, @"\d{2,}");
+                            if (match.Success) { boxNo = match.Value; break; }
+                        }
+                    }
+                }
 
                 ResultsList.Items.Add($"SKU:      {sku}");
                 ResultsList.Items.Add($"Batch No: {batchNo}");
