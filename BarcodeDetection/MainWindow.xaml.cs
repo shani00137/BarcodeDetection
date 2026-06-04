@@ -37,6 +37,38 @@ namespace BarcodeDetection
             }
         }
 
+        private static Mat RemoveReflections(Mat src)
+        {
+            using var gray = new Mat();
+            Cv2.CvtColor(src, gray, ColorConversionCodes.BGR2GRAY);
+
+            using var illumination = new Mat();
+            Cv2.GaussianBlur(gray, illumination, new OpenCvSharp.Size(151, 151), 0);
+
+            using var grayF = ToFloat(gray);
+            using var illumF = ToFloat(illumination);
+            using var normalized = new Mat();
+            Cv2.Divide(grayF, illumF, normalized, 255f);
+            normalized.ConvertTo(normalized, MatType.CV_8UC1);
+
+            var result = new Mat();
+            Cv2.CvtColor(normalized, result, ColorConversionCodes.GRAY2BGR);
+
+            return result;
+        }
+
+        private static Mat ToFloat(Mat mat)
+        {
+            var f = new Mat();
+            mat.ConvertTo(f, MatType.CV_32F);
+            return f;
+        }
+
+        private static string CleanValue(string value)
+        {
+            return Regex.Replace(value, @"[^\w:*<>\-]", "");
+        }
+
         private async void UploadImageButton_Click(object sender, RoutedEventArgs e)
         {
             var openFileDialog = new Microsoft.Win32.OpenFileDialog
@@ -63,7 +95,8 @@ namespace BarcodeDetection
                     return;
                 }
 
-                PaddleOcrResult result = await Task.Run(() => _ocrEngine.Run(src));
+                using var cleaned = RemoveReflections(src);
+                PaddleOcrResult result = await Task.Run(() => _ocrEngine.Run(cleaned));
 
                 var regions = result.Regions
                     .Select(r => new { Text = r.Text.Trim(), Center = r.Rect.Center, Size = r.Rect.Size, Angle = r.Rect.Angle })
@@ -85,7 +118,7 @@ namespace BarcodeDetection
                         Scalar.Lime, 2);
                 }
 
-                string ExtractField(string labelPattern, string valuePattern)
+                string ExtractField(string labelPattern, string valuePattern, string? relaxedPattern = null)
                 {
                     var labelRegions = regions
                         .Select((r, i) => new { r, i })
@@ -111,6 +144,30 @@ namespace BarcodeDetection
                         }
                     }
 
+                    if (relaxedPattern != null)
+                    {
+                        foreach (var lr in labelRegions)
+                        {
+                            var match = Regex.Match(lr.r.Text, relaxedPattern);
+                            if (match.Success) return match.Value;
+                            var next = regions.Skip(lr.i + 1).FirstOrDefault();
+                            if (next != null)
+                            {
+                                float dy = Math.Abs(next.Center.Y - lr.r.Center.Y);
+                                float dx = Math.Abs(next.Center.X - lr.r.Center.X);
+                                if (dy < 200 && dx < 800)
+                                {
+                                    match = Regex.Match(next.Text, relaxedPattern);
+                                    if (match.Success) return match.Value;
+                                }
+                            }
+                        }
+                        var fallbackRelaxed = regions
+                            .Select(r => Regex.Match(r.Text, relaxedPattern))
+                            .FirstOrDefault(m => m.Success);
+                        if (fallbackRelaxed != null) return fallbackRelaxed.Value;
+                    }
+
                     var fallback = regions
                         .Select(r => Regex.Match(r.Text, valuePattern))
                         .FirstOrDefault(m => m.Success);
@@ -118,7 +175,9 @@ namespace BarcodeDetection
                 }
 
                 string sku = ExtractField(@"sku", @"\d{5,}[A-Za-z][\w-]*");
-                string batchNo = ExtractField(@"Batch", @"\d{5,}[-*][\d]+[-*][\w:*<>\-]+");
+                string batchNo = ExtractField(@"Batch",
+                    @"\d{5,}[-*][\d]+[-*][\w:*<>\-]+",
+                    @"\d{4,}[\W]*\d+[\W]*[\w:*<>\-]+");
                 string boxNo = "Not found";
                 var boxRegions = regions
                     .Select((r, i) => new { r, i })
@@ -142,7 +201,7 @@ namespace BarcodeDetection
                 }
 
                 ResultsList.Items.Add($"SKU:      {sku}");
-                ResultsList.Items.Add($"Batch No: {batchNo}");
+                ResultsList.Items.Add($"Batch No: {CleanValue(batchNo)}");
                 ResultsList.Items.Add($"Box No:   {boxNo}");
 
                 PreviewImage.Source = displayMat.ToBitmapSource();
